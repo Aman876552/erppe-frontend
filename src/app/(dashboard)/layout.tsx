@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { AppSidebar } from "@/modules/core/layout/app-sidebar"
 import { AppHeader } from "@/modules/core/layout/app-header"
@@ -9,16 +9,22 @@ import { useAuth } from "@/modules/core/hooks/use-auth"
 import { LoadingSpinner } from "@/modules/core/components/loading-spinner"
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const [mounted, setMounted] = useState(false)
   const { isAuthenticated, isLoading } = useAuth()
   const router = useRouter()
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    if (mounted && !isLoading && !isAuthenticated) {
       router.push("/login")
     }
-  }, [isAuthenticated, isLoading, router])
+  }, [mounted, isAuthenticated, isLoading, router])
 
-  if (isLoading || !isAuthenticated) {
+  // Prevent SSR / hydration mismatch by ensuring server and client initial render match 100%
+  if (!mounted || isLoading || !isAuthenticated) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <LoadingSpinner label="Authenticating session..." size="lg" />

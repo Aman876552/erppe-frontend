@@ -7,6 +7,9 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useAuth } from "@/modules/core/hooks/use-auth"
+import { useCrud } from "@/modules/core/hooks/use-crud"
+import { User } from "@/modules/core/types/auth"
+import { apiConfig } from "@/config/api"
 import { ERP_MODULES } from "@/config/modules"
 import {
   Users,
@@ -16,7 +19,6 @@ import {
   ArrowUpRight,
   UserPlus,
   Shield,
-  Lock,
   Boxes,
   CheckCircle2,
   Clock,
@@ -24,48 +26,51 @@ import {
 
 export default function DashboardPage() {
   const { user } = useAuth()
+  const { data: users, meta, isLoading } = useCrud<User>({
+    endpoint: apiConfig.endpoints.users.list,
+  })
+
+  const totalUsersCount = meta.totalItems || users.length
+  const activeUsersCount = users.filter((u) => u.status === "active").length
 
   const metrics = [
     {
       title: "Total System Users",
-      value: "1,248",
-      change: "+12.4%",
-      trend: "up",
+      value: isLoading ? "..." : `${totalUsersCount} Accounts`,
+      change: `${activeUsersCount} Active`,
       icon: <Users className="h-5 w-5 text-blue-500" />,
       href: "/core/users",
     },
     {
       title: "Active Security Roles",
-      value: "8 Roles",
+      value: "5 Roles",
       change: "RBAC Enforced",
-      trend: "neutral",
       icon: <ShieldCheck className="h-5 w-5 text-emerald-500" />,
       href: "/core/roles",
     },
     {
       title: "System Permissions",
-      value: "64 Keys",
-      change: "100% Mapped",
-      trend: "up",
+      value: "9 Keys",
+      change: "Core Mapped",
       icon: <Key className="h-5 w-5 text-amber-500" />,
       href: "/core/permissions",
     },
     {
       title: "Active Core Modules",
-      value: "1 Active",
-      change: "User & Core",
-      trend: "neutral",
+      value: `${Object.values(ERP_MODULES).filter((m) => m.status === "active").length} Active`,
+      change: "Core Kernel",
       icon: <Boxes className="h-5 w-5 text-indigo-500" />,
       href: "/core/users",
     },
   ]
 
-  const recentLogs = [
-    { id: "1", user: "Alexander Wright", action: "User Role Updated", target: "Role: Super Admin", time: "2 mins ago" },
-    { id: "2", user: "Sarah Jenkins", action: "Password Reset Triggered", target: "User: s.jenkins@erp.com", time: "15 mins ago" },
-    { id: "3", user: "Michael Chang", action: "Created New User Account", target: "User: m.chang@erp.com", time: "1 hour ago" },
-    { id: "4", user: "System Security", action: "Audit Key Verification", target: "All Core Modules", time: "3 hours ago" },
-  ]
+  const dynamicLogs = users.slice(0, 4).map((u, index) => ({
+    id: u.id,
+    user: u.name,
+    action: index === 0 ? "Active Session Verified" : index === 1 ? "Role Authorization Checked" : "User Profile Synced",
+    target: `Department: ${u.department || "General"}`,
+    time: u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Just now",
+  }))
 
   return (
     <div className="space-y-6">
@@ -170,7 +175,7 @@ export default function DashboardPage() {
             <CardDescription className="text-xs">Real-time user & access events</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {recentLogs.map((log) => (
+            {dynamicLogs.map((log) => (
               <div key={log.id} className="flex flex-col space-y-1 pb-3 border-b border-border/50 last:border-0 last:pb-0">
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-semibold text-foreground">{log.action}</span>

@@ -45,11 +45,46 @@ export const navigationConfig: NavSection[] = [
         icon: "Activity",
         moduleKey: "audits",
       },
+      {
+        title: "Company Documents",
+        href: "/company-documents",
+        icon: "FileText",
+        permission: "company_documents.viewAny",
+        moduleKey: "companyDocuments",
+      },
     ],
   },
   {
     title: "Operations",
     items: [
+      {
+        title: "Client Directory",
+        href: "/clients",
+        icon: "UserCheck",
+        permission: "clients.viewAny",
+        moduleKey: "clients",
+      },
+      {
+        title: "Vendor Directory",
+        href: "/vendors",
+        icon: "Truck",
+        permission: "vendors.viewAny",
+        moduleKey: "vendors",
+      },
+      {
+        title: "Fabricator Directory",
+        href: "/fabricators",
+        icon: "Factory",
+        permission: "fabricators.viewAny",
+        moduleKey: "fabricators",
+      },
+      {
+        title: "Expense Management",
+        href: "/expenses",
+        icon: "Receipt",
+        permission: "expenses.viewAny",
+        moduleKey: "expenses",
+      },
       {
         title: "Assets & Maintenance",
         href: "/assets",

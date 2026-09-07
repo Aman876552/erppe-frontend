@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
 import { PageHeader } from "@/modules/core/components/page-header"
@@ -8,59 +8,62 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
-import { Shield, ArrowLeft, Save, CheckCircle2 } from "lucide-react"
-
-const MODULE_PERMISSIONS = [
-  {
-    module: "User & Security Core",
-    key: "core",
-    permissions: [
-      { code: "users.view", name: "View Users Directory", desc: "Allows viewing user profiles and department info." },
-      { code: "users.create", name: "Create User Accounts", desc: "Allows provisioning new employee accounts." },
-      { code: "users.edit", name: "Edit User Profiles", desc: "Allows modifying user details and designations." },
-      { code: "users.delete", name: "Delete / Suspend Users", desc: "Allows suspending or purging accounts." },
-      { code: "roles.manage", name: "Manage Roles & RBAC", desc: "Allows modifying security roles and matrix." },
-      { code: "audits.view", name: "View Security Audit Logs", desc: "Allows inspecting security activity trails." },
-    ],
-  },
-  {
-    module: "Client Management (CRM)",
-    key: "clients",
-    permissions: [
-      { code: "clients.view", name: "View Client Accounts", desc: "Access client directory and contact details." },
-      { code: "clients.manage", name: "Create & Edit Clients", desc: "Add new enterprise clients or edit profiles." },
-    ],
-  },
-  {
-    module: "Product Catalog",
-    key: "catalog",
-    permissions: [
-      { code: "catalog.view", name: "View Catalog Items", desc: "Browse product SKUs and category listings." },
-      { code: "catalog.manage", name: "Manage Products & Categories", desc: "Add or update products and unit conversions." },
-    ],
-  },
-  {
-    module: "Sales Orders",
-    key: "sales",
-    permissions: [
-      { code: "sales.orders.view", name: "View Sales Orders", desc: "Access sales order directory and status." },
-      { code: "sales.orders.create", name: "Create & Approve Orders", desc: "Issue new customer sales orders." },
-    ],
-  },
-]
+import { rolesApi, ApiRole, ApiPermission } from "@/modules/core/lib/roles-api"
+import { Shield, ArrowLeft, Save, CheckCircle2, AlertTriangle, Loader2 } from "lucide-react"
 
 export default function RoleDetailPage() {
   const params = useParams()
   const router = useRouter()
   const roleId = params.id as string
 
-  const [selectedPermissions, setSelectedPermissions] = useState<string[]>([
-    "users.view",
-    "users.create",
-    "users.edit",
-    "roles.manage",
-  ])
+  const [role, setRole] = useState<ApiRole | null>(null)
+  const [allPermissions, setAllPermissions] = useState<ApiPermission[]>([])
+  const [selectedPermissions, setSelectedPermissions] = useState<string[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
   const [isSaved, setIsSaved] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const loadRoleData = async () => {
+      setIsLoading(true)
+      setError(null)
+      try {
+        const [rolesList, permsList] = await Promise.all([
+          rolesApi.getRoles(),
+          rolesApi.getPermissions(),
+        ])
+
+        setAllPermissions(permsList)
+        const foundRole = rolesList.find((r) => String(r.id) === String(roleId))
+
+        if (foundRole) {
+          setRole(foundRole)
+          const initialPerms = (foundRole.permissions || []).map((p) =>
+            typeof p === "string" ? p : p.name || p.code || String(p)
+          )
+          setSelectedPermissions(initialPerms)
+        } else {
+          setRole({
+            id: roleId,
+            name: `Role #${roleId}`,
+            guard_name: "sanctum",
+            code: "CUSTOM",
+            description: "Custom role permissions matrix.",
+            permissions: [],
+          })
+        }
+      } catch (err: any) {
+        setError(err.message || "Failed to fetch role data.")
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    if (roleId) {
+      loadRoleData()
+    }
+  }, [roleId])
 
   const togglePermission = (code: string) => {
     setSelectedPermissions((prev) =>
@@ -68,7 +71,7 @@ export default function RoleDetailPage() {
     )
   }
 
-  const toggleModule = (moduleKey: string, codes: string[]) => {
+  const toggleModule = (codes: string[]) => {
     const allSelected = codes.every((c) => selectedPermissions.includes(c))
     if (allSelected) {
       setSelectedPermissions((prev) => prev.filter((c) => !codes.includes(c)))
@@ -77,26 +80,56 @@ export default function RoleDetailPage() {
     }
   }
 
-  const handleSave = () => {
-    setIsSaved(true)
-    setTimeout(() => setIsSaved(false), 2000)
+  const handleSave = async () => {
+    setIsSaving(true)
+    setError(null)
+    try {
+      await rolesApi.updateRolePermissions(roleId, selectedPermissions, role?.name)
+      setIsSaved(true)
+      setTimeout(() => setIsSaved(false), 3000)
+    } catch (err: any) {
+      setError(err.message || "Failed to update role permissions.")
+    } finally {
+      setIsSaving(false)
+    }
   }
+
+  // Group permissions by module
+  const groupedPermissions: Record<string, ApiPermission[]> = {}
+  allPermissions.forEach((p) => {
+    const mod = p.module || "General"
+    if (!groupedPermissions[mod]) {
+      groupedPermissions[mod] = []
+    }
+    groupedPermissions[mod].push(p)
+  })
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Permission Matrix Editor"
-        description={`Editing Security Role: System Administrator (ID: ${roleId})`}
-        badge={<Badge variant="default">RBAC Level 2</Badge>}
+        description={`Editing Security Role: ${role ? role.name : roleId} (ID: ${roleId})`}
+        badge={
+          <Badge variant="default">
+            Guard: {role?.guard_name || "sanctum"}
+          </Badge>
+        }
         actions={
           <div className="flex gap-2">
             <Button asChild variant="outline" size="sm" className="gap-2">
               <Link href="/core/roles">
-                <ArrowLeft className="h-4 w-4" /> Cancel
+                <ArrowLeft className="h-4 w-4" /> Back to Roles
               </Link>
             </Button>
-            <Button onClick={handleSave} variant="default" size="sm" className="gap-2">
-              <Save className="h-4 w-4" /> Save Permission Changes
+            <Button
+              onClick={handleSave}
+              variant="default"
+              size="sm"
+              disabled={isSaving}
+              className="gap-2"
+            >
+              {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Save Permission Changes
             </Button>
           </div>
         }
@@ -105,69 +138,90 @@ export default function RoleDetailPage() {
       {isSaved && (
         <div className="flex items-center gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3.5 text-xs font-semibold text-emerald-500 animate-in fade-in">
           <CheckCircle2 className="h-4 w-4" />
-          <span>Role permission matrix updated successfully! All active sessions will refresh privileges.</span>
+          <span>
+            Role permission matrix updated successfully! Posted to{" "}
+            <code className="font-mono">POST /api/role/updatepermissions/{roleId}</code>.
+          </span>
         </div>
       )}
 
-      {/* Permission Matrix Grid */}
-      <div className="space-y-6">
-        {MODULE_PERMISSIONS.map((mod) => {
-          const codes = mod.permissions.map((p) => p.code)
-          const allSelected = codes.every((c) => selectedPermissions.includes(c))
+      {error && (
+        <div className="flex items-center gap-3 rounded-xl border border-red-500/20 bg-red-500/10 p-3.5 text-xs font-semibold text-red-500 animate-in fade-in">
+          <AlertTriangle className="h-4 w-4" />
+          <span>{error}</span>
+        </div>
+      )}
 
-          return (
-            <Card key={mod.key}>
-              <CardHeader className="flex flex-row items-center justify-between border-b border-border/60 py-4">
-                <div>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Shield className="h-4 w-4 text-primary" /> {mod.module}
-                  </CardTitle>
-                  <CardDescription className="text-xs">
-                    {selectedPermissions.filter((c) => codes.includes(c)).length} of {codes.length} keys granted
-                  </CardDescription>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => toggleModule(mod.key, codes)}
-                  className="text-xs"
-                >
-                  {allSelected ? "Deselect All" : "Select All"}
-                </Button>
-              </CardHeader>
-              <CardContent className="p-6">
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {mod.permissions.map((p) => {
-                    const isChecked = selectedPermissions.includes(p.code)
-                    return (
-                      <div
-                        key={p.code}
-                        onClick={() => togglePermission(p.code)}
-                        className={`flex items-start gap-3 p-3.5 rounded-xl border transition-all cursor-pointer ${
-                          isChecked
-                            ? "border-primary/40 bg-primary/5 shadow-xs"
-                            : "border-border bg-card/40 hover:bg-muted/40"
-                        }`}
-                      >
-                        <Checkbox
-                          checked={isChecked}
-                          onChange={() => togglePermission(p.code)}
-                          className="mt-0.5"
-                        />
-                        <div className="space-y-0.5">
-                          <span className="text-xs font-bold text-foreground block">{p.name}</span>
-                          <span className="text-[10px] font-mono text-primary font-semibold block">{p.code}</span>
-                          <p className="text-[11px] text-muted-foreground leading-snug">{p.desc}</p>
+      {isLoading ? (
+        <div className="flex min-h-[300px] items-center justify-center">
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <span className="text-xs text-muted-foreground">Loading role matrix...</span>
+          </div>
+        </div>
+      ) : (
+        /* Permission Matrix Grid */
+        <div className="space-y-6">
+          {Object.entries(groupedPermissions).map(([moduleName, perms]) => {
+            const codes = perms.map((p) => p.name || p.code || String(p.id))
+            const allSelected = codes.every((c) => selectedPermissions.includes(c))
+            const grantedCount = selectedPermissions.filter((c) => codes.includes(c)).length
+
+            return (
+              <Card key={moduleName} className="border border-border/60">
+                <CardHeader className="flex flex-row items-center justify-between border-b border-border/60 py-4">
+                  <div>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Shield className="h-4 w-4 text-primary" /> {moduleName}
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                      {grantedCount} of {codes.length} keys granted
+                    </CardDescription>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => toggleModule(codes)}
+                    className="text-xs"
+                  >
+                    {allSelected ? "Deselect All" : "Select All"}
+                  </Button>
+                </CardHeader>
+                <CardContent className="p-6">
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {perms.map((p) => {
+                      const code = p.name || p.code || String(p.id)
+                      const isChecked = selectedPermissions.includes(code)
+                      return (
+                        <div
+                          key={code}
+                          onClick={() => togglePermission(code)}
+                          className={`flex items-start gap-3 p-3.5 rounded-xl border transition-all cursor-pointer select-none ${
+                            isChecked
+                              ? "border-primary/40 bg-primary/5 shadow-xs"
+                              : "border-border bg-card/40 hover:bg-muted/40"
+                          }`}
+                        >
+                          <div className="pointer-events-none mt-0.5">
+                            <Checkbox
+                              checked={isChecked}
+                              onChange={() => {}}
+                            />
+                          </div>
+                          <div className="space-y-0.5">
+                            <span className="text-xs font-bold text-foreground block">{p.description || p.name}</span>
+                            <span className="text-[10px] font-mono text-primary font-semibold block">{code}</span>
+                          </div>
                         </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          )
-        })}
-      </div>
+                      )
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

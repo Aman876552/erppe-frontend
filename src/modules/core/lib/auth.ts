@@ -7,21 +7,42 @@ const USER_KEY = "erp_user_data"
 export const authStorage = {
   getAccessToken: (): string | null => {
     if (typeof window === "undefined") return null
-    return localStorage.getItem(TOKEN_KEY)
+    const token =
+      localStorage.getItem(TOKEN_KEY) ||
+      localStorage.getItem("token") ||
+      localStorage.getItem("access_token") ||
+      localStorage.getItem("auth_token") ||
+      localStorage.getItem("bearer_token")
+
+    if (!token || token === "undefined" || token === "null" || token.trim() === "") {
+      return null
+    }
+    return token
   },
   getRefreshToken: (): string | null => {
     if (typeof window === "undefined") return null
-    return localStorage.getItem(REFRESH_TOKEN_KEY)
+    const ref = localStorage.getItem(REFRESH_TOKEN_KEY) || localStorage.getItem("refresh_token")
+    if (!ref || ref === "undefined" || ref === "null" || ref.trim() === "") {
+      return null
+    }
+    return ref
   },
   setTokens: (tokens: AuthTokens) => {
     if (typeof window === "undefined") return
+    if (!tokens.accessToken || tokens.accessToken === "undefined" || tokens.accessToken === "null") return
+
     localStorage.setItem(TOKEN_KEY, tokens.accessToken)
-    localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken)
+    localStorage.setItem("token", tokens.accessToken)
+    localStorage.setItem("access_token", tokens.accessToken)
+    localStorage.setItem("auth_token", tokens.accessToken)
+    if (tokens.refreshToken && tokens.refreshToken !== "undefined" && tokens.refreshToken !== "null") {
+      localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken)
+    }
   },
   getUser: (): User | null => {
     if (typeof window === "undefined") return null
     const data = localStorage.getItem(USER_KEY)
-    if (!data) return null
+    if (!data || data === "undefined" || data === "null") return null
     try {
       return JSON.parse(data) as User
     } catch {
@@ -35,7 +56,12 @@ export const authStorage = {
   clearAuth: () => {
     if (typeof window === "undefined") return
     localStorage.removeItem(TOKEN_KEY)
+    localStorage.removeItem("token")
+    localStorage.removeItem("access_token")
+    localStorage.removeItem("auth_token")
+    localStorage.removeItem("bearer_token")
     localStorage.removeItem(REFRESH_TOKEN_KEY)
+    localStorage.removeItem("refresh_token")
     localStorage.removeItem(USER_KEY)
   },
 }

@@ -15,10 +15,29 @@ interface AuthStore {
   initialize: () => void
 }
 
+// Helper to synchronously read persisted session on initial store load
+const getInitialAuthState = () => {
+  if (typeof window === "undefined") {
+    return { user: null, tokens: null, isAuthenticated: false }
+  }
+  const user = authStorage.getUser()
+  const token = authStorage.getAccessToken()
+  if (user && token) {
+    return {
+      user,
+      tokens: { accessToken: token, refreshToken: authStorage.getRefreshToken() || "", expiresIn: 86400 },
+      isAuthenticated: true,
+    }
+  }
+  return { user: null, tokens: null, isAuthenticated: false }
+}
+
+const initialAuth = getInitialAuthState()
+
 export const useAuthStore = create<AuthStore>((set) => ({
-  user: null,
-  tokens: null,
-  isAuthenticated: false,
+  user: initialAuth.user,
+  tokens: initialAuth.tokens,
+  isAuthenticated: initialAuth.isAuthenticated,
   isLoading: false,
 
   setUser: (user) => {
@@ -32,6 +51,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
 
   login: async (credentials) => {
     set({ isLoading: true })
+    console.log(`[AUTH STORE LOGIN INITIATED] Email: ${credentials.email}`)
 
     try {
       // Direct Real API Call to backend at http://127.0.0.1:8000/api/auth/login
@@ -40,14 +60,22 @@ export const useAuthStore = create<AuthStore>((set) => ({
         password: credentials.password,
       })
 
+      console.log(`[AUTH STORE LOGIN RESPONSE RAW]`, response)
+
       // Extract response fields flexible for standard Laravel/Express/FastAPI structures
       const resPayload = response.data || response
       const accessToken =
         resPayload.access_token ||
         resPayload.token ||
+        resPayload.bearer_token ||
+        resPayload.authorisation?.token ||
+        resPayload.authorization?.token ||
         resPayload.tokens?.accessToken ||
         resPayload.data?.access_token ||
-        resPayload.data?.token
+        resPayload.data?.token ||
+        resPayload.data?.bearer_token
+
+      console.log(`[AUTH STORE EXTRACTED TOKEN] Token:`, accessToken ? `${accessToken.substring(0, 15)}...` : "NOT FOUND")
 
       if (!accessToken) {
         throw new Error(response.message || "Failed to extract access token from server response.")
@@ -87,6 +115,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
         expiresIn: resPayload.expires_in || 86400,
       }
 
+      console.log(`[AUTH STORE SAVING TO STORAGE] User:`, userObj)
       authStorage.setUser(userObj)
       authStorage.setTokens(tokens)
 
@@ -99,6 +128,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
 
       return { success: true }
     } catch (err: any) {
+      console.error(`[AUTH STORE LOGIN ERROR]`, err)
       set({ isLoading: false })
       return {
         success: false,
