@@ -208,7 +208,10 @@ export default function VendorsPage() {
       v.name.toLowerCase().includes(search.toLowerCase()) ||
       (v.vendorCode || "").toLowerCase().includes(search.toLowerCase()) ||
       (v.email || "").toLowerCase().includes(search.toLowerCase()) ||
-      (v.city || "").toLowerCase().includes(search.toLowerCase())
+      (v.city || "").toLowerCase().includes(search.toLowerCase()) ||
+      (v.country || "").toLowerCase().includes(search.toLowerCase()) ||
+      (v.pinCode || "").toLowerCase().includes(search.toLowerCase()) ||
+      (v.notes || "").toLowerCase().includes(search.toLowerCase())
     const matchesCity = cityFilter === "all" || v.city === cityFilter
     return matchesSearch && matchesCity
   })
@@ -307,18 +310,26 @@ export default function VendorsPage() {
       ),
     },
     {
-      key: "spend",
-      title: "Orders & Spend",
-      sortable: true,
+      key: "country",
+      title: "Country",
       render: (row) => (
-        <div className="text-xs space-y-0.5">
-          <div className="font-bold text-foreground">
-            ₹{Number(row.totalSpend || 0).toLocaleString("en-IN")}
-          </div>
-          <span className="text-[10px] text-muted-foreground font-medium block">
-            {row.ordersCount || 0} Purchase Orders
-          </span>
-        </div>
+        <span className="text-xs font-medium text-foreground">{row.country || "—"}</span>
+      ),
+    },
+    {
+      key: "pinCode",
+      title: "Pin Code",
+      render: (row) => (
+        <span className="text-xs font-mono text-foreground">{row.pinCode || "—"}</span>
+      ),
+    },
+    {
+      key: "notes",
+      title: "Notes / Comments",
+      render: (row) => (
+        <span className="text-xs text-muted-foreground block truncate max-w-[200px]" title={row.notes}>
+          {row.notes || "—"}
+        </span>
       ),
     },
     {

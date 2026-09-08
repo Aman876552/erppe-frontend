@@ -20,11 +20,6 @@ export function UserNav() {
       onClick: () => router.push(`/core/users/${user.id}`),
     },
     {
-      label: "Roles & Security",
-      icon: <Shield className="h-4 w-4" />,
-      onClick: () => router.push("/core/roles"),
-    },
-    {
       label: "Account Settings",
       icon: <Settings className="h-4 w-4" />,
       onClick: () => router.push(`/core/users/${user.id}`),

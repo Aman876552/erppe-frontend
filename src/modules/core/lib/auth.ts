@@ -38,6 +38,9 @@ export const authStorage = {
     if (tokens.refreshToken && tokens.refreshToken !== "undefined" && tokens.refreshToken !== "null") {
       localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken)
     }
+    if (typeof document !== "undefined") {
+      document.cookie = `auth_token=${tokens.accessToken}; path=/; max-age=86400; SameSite=Lax`
+    }
   },
   getUser: (): User | null => {
     if (typeof window === "undefined") return null
@@ -63,5 +66,8 @@ export const authStorage = {
     localStorage.removeItem(REFRESH_TOKEN_KEY)
     localStorage.removeItem("refresh_token")
     localStorage.removeItem(USER_KEY)
+    if (typeof document !== "undefined") {
+      document.cookie = `auth_token=; path=/; max-age=0; SameSite=Lax`
+    }
   },
 }

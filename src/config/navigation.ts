@@ -35,7 +35,6 @@ export const navigationConfig: NavSection[] = [
         moduleKey: "core",
         items: [
           { title: "All Users", href: "/core/users" },
-          { title: "Roles & Access", href: "/core/roles" },
           { title: "Permissions Matrix", href: "/core/permissions" },
         ],
       },
@@ -57,6 +56,20 @@ export const navigationConfig: NavSection[] = [
   {
     title: "Operations",
     items: [
+      {
+        title: "Leads & Enquiries",
+        href: "/leads",
+        icon: "Target",
+        permission: "leads.viewAny",
+        moduleKey: "leads",
+      },
+      {
+        title: "Customer Orders",
+        href: "/orders",
+        icon: "ShoppingCart",
+        permission: "orders.viewAny",
+        moduleKey: "orders",
+      },
       {
         title: "Client Directory",
         href: "/clients",
@@ -84,6 +97,27 @@ export const navigationConfig: NavSection[] = [
         icon: "Receipt",
         permission: "expenses.viewAny",
         moduleKey: "expenses",
+      },
+      {
+        title: "Inventory Items",
+        href: "/inventory",
+        icon: "Boxes",
+        permission: "inventory.viewAny",
+        moduleKey: "inventory",
+      },
+      {
+        title: "Product Catalog",
+        href: "/products",
+        icon: "Package",
+        permission: "products.viewAny",
+        moduleKey: "products",
+      },
+      {
+        title: "Machine Registry",
+        href: "/machines",
+        icon: "Wrench",
+        permission: "machine.viewAny",
+        moduleKey: "machines",
       },
       {
         title: "Assets & Maintenance",

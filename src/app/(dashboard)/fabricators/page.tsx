@@ -246,6 +246,8 @@ export default function FabricatorsPage() {
       f.contactPerson.toLowerCase().includes(search.toLowerCase()) ||
       f.mobileNumber.toLowerCase().includes(search.toLowerCase()) ||
       (f.city || "").toLowerCase().includes(search.toLowerCase()) ||
+      (f.address || "").toLowerCase().includes(search.toLowerCase()) ||
+      (f.remarks || "").toLowerCase().includes(search.toLowerCase()) ||
       (f.fabricationType || "").toLowerCase().includes(search.toLowerCase())
 
     const matchesStatus = statusFilter === "all" || f.status === statusFilter
@@ -316,6 +318,15 @@ export default function FabricatorsPage() {
       ),
     },
     {
+      key: "address",
+      title: "Address",
+      render: (row) => (
+        <span className="text-xs text-muted-foreground block truncate max-w-[180px]" title={row.address}>
+          {row.address || "—"}
+        </span>
+      ),
+    },
+    {
       key: "gstNumber",
       title: "GST Number",
       render: (row) => (
@@ -339,6 +350,15 @@ export default function FabricatorsPage() {
           </Badge>
         )
       },
+    },
+    {
+      key: "remarks",
+      title: "Remarks",
+      render: (row) => (
+        <span className="text-xs text-muted-foreground block truncate max-w-[180px]" title={row.remarks}>
+          {row.remarks || "—"}
+        </span>
+      ),
     },
     {
       key: "actions",

@@ -14,9 +14,7 @@ export interface CompanyDocument {
   isPrivate?: boolean
   issueDate?: string | null
   expiryDate?: string | null
-  reminderBeforeExpiry?: number | null
-  notes?: string | null
-  rawData?: string | null
+  reminderBeforeExpiry?: string | null
   createdBy?: string | null
   createdAt?: string | null
   updatedAt?: string | null
@@ -29,9 +27,7 @@ export interface CreateCompanyDocumentPayload {
   isPrivate?: boolean
   issueDate?: string
   expiryDate?: string
-  reminderBeforeExpiry?: number
-  notes?: string
-  rawData?: string
+  reminderBeforeExpiry?: string
   attachment?: File | null
 }
 

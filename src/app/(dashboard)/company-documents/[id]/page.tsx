@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
 import { PageHeader } from "@/modules/core/components/page-header"
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Dialog } from "@/components/ui/dialog"
@@ -17,8 +17,6 @@ import {
 import {
   ArrowLeft,
   FileText,
-  Lock,
-  Unlock,
   Calendar,
   Clock,
   Paperclip,
@@ -33,7 +31,7 @@ import {
   HardDrive,
   User,
 } from "lucide-react"
-import { DocumentPreviewModal } from "@/modules/core/components/document-preview-modal"
+import { openCompanyDocument, openMediaInNewTab } from "@/modules/core/lib/media"
 
 export default function CompanyDocumentDetailPage() {
   const params = useParams()
@@ -44,18 +42,15 @@ export default function CompanyDocumentDetailPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [notification, setNotification] = useState<string | null>(null)
-  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
 
   // Edit Modal State
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [isSubmittingEdit, setIsSubmittingEdit] = useState(false)
   const [formData, setFormData] = useState<CreateCompanyDocumentPayload>({
     documentName: "",
-    isPrivate: false,
     issueDate: "",
     expiryDate: "",
-    reminderBeforeExpiry: 30,
-    notes: "",
+    reminderBeforeExpiry: "",
     attachment: null,
   })
 
@@ -91,11 +86,9 @@ export default function CompanyDocumentDetailPage() {
     if (!document) return
     setFormData({
       documentName: document.documentName,
-      isPrivate: Boolean(document.isPrivate),
-      issueDate: document.issueDate || "",
-      expiryDate: document.expiryDate || "",
-      reminderBeforeExpiry: document.reminderBeforeExpiry ?? 30,
-      notes: document.notes || "",
+      issueDate: document.issueDate ? document.issueDate.split("T")[0] : "",
+      expiryDate: document.expiryDate ? document.expiryDate.split("T")[0] : "",
+      reminderBeforeExpiry: document.reminderBeforeExpiry ? document.reminderBeforeExpiry.split("T")[0] : "",
       attachment: null,
     })
     setIsEditOpen(true)
@@ -133,6 +126,11 @@ export default function CompanyDocumentDetailPage() {
       setError(err.message || "Failed to delete document.")
       setIsSubmittingDelete(false)
     }
+  }
+
+  const formatDateDisplay = (dateStr?: string | null) => {
+    if (!dateStr) return null
+    return dateStr.includes("T") ? dateStr.split("T")[0] : dateStr
   }
 
   if (isLoading) {
@@ -173,17 +171,7 @@ export default function CompanyDocumentDetailPage() {
       <PageHeader
         title={document.documentName}
         description={`Legal Certificate & Compliance Record (ID: #${document.id})`}
-        badge={
-          document.isPrivate ? (
-            <Badge variant="destructive" className="gap-1 font-mono">
-              <Lock className="h-3 w-3" /> Private Document
-            </Badge>
-          ) : (
-            <Badge variant="secondary" className="gap-1 font-mono">
-              <Unlock className="h-3 w-3" /> Public Access
-            </Badge>
-          )
-        }
+        badge={<Badge variant="info">Active Record</Badge>}
         actions={
           <div className="flex items-center gap-2">
             <Button asChild variant="outline" size="sm" className="gap-2">
@@ -235,24 +223,22 @@ export default function CompanyDocumentDetailPage() {
               <span className="text-muted-foreground font-medium flex items-center gap-1">
                 <Calendar className="h-3 w-3 text-primary" /> Issue Date
               </span>
-              <span className="font-semibold text-foreground font-mono">{document.issueDate || "—"}</span>
+              <span className="font-semibold text-foreground font-mono">{formatDateDisplay(document.issueDate) || "—"}</span>
             </div>
 
             <div className="flex justify-between items-center pb-2 border-b border-border/40">
               <span className="text-muted-foreground font-medium flex items-center gap-1">
                 <Clock className="h-3 w-3 text-amber-500" /> Expiry Date
               </span>
-              <span className="font-bold text-foreground font-mono">{document.expiryDate || "No Expiry Date"}</span>
+              <span className="font-bold text-foreground font-mono">{formatDateDisplay(document.expiryDate) || "No Expiry Date"}</span>
             </div>
 
             <div className="flex justify-between items-center pb-2 border-b border-border/40">
               <span className="text-muted-foreground font-medium flex items-center gap-1">
-                <Bell className="h-3 w-3 text-primary" /> Expiry Alert Threshold
+                <Bell className="h-3 w-3 text-primary" /> Reminder Date
               </span>
-              <span className="font-semibold text-foreground">
-                {document.reminderBeforeExpiry !== undefined && document.reminderBeforeExpiry !== null
-                  ? `${document.reminderBeforeExpiry} days before expiry`
-                  : "Not set"}
+              <span className="font-semibold text-foreground font-mono">
+                {formatDateDisplay(document.reminderBeforeExpiry) || "Not set"}
               </span>
             </div>
 
@@ -262,13 +248,6 @@ export default function CompanyDocumentDetailPage() {
               </span>
               <span className="font-semibold text-foreground">User #{document.createdBy || "System"}</span>
             </div>
-
-            <div className="space-y-1 pt-1">
-              <span className="text-muted-foreground font-medium block">Document Notes</span>
-              <p className="text-xs text-foreground leading-relaxed bg-muted/30 p-2.5 rounded-lg border border-border/40">
-                {document.notes || "No internal notes provided for this document."}
-              </p>
-            </div>
           </CardContent>
         </Card>
 
@@ -276,7 +255,7 @@ export default function CompanyDocumentDetailPage() {
         <Card className="border border-border/60 flex flex-col">
           <CardHeader className="border-b border-border/60 pb-3">
             <CardTitle className="text-sm font-bold flex items-center gap-2">
-              <Paperclip className="h-4 w-4 text-emerald-500" /> Spatie Media Attachment
+              <Paperclip className="h-4 w-4 text-emerald-500" /> File Attachment
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 flex-1 flex flex-col justify-between space-y-4">
@@ -300,25 +279,18 @@ export default function CompanyDocumentDetailPage() {
                   </div>
 
                   <div className="flex items-center gap-2 pt-2 border-t border-emerald-500/20">
-                    <Button size="sm" variant="default" onClick={() => setIsPreviewOpen(true)} className="gap-1.5 flex-1 text-xs">
-                      <ExternalLink className="h-3.5 w-3.5" /> View / Preview Attachment
-                    </Button>
-                    <Button asChild size="sm" variant="outline" className="gap-1.5 text-xs">
-                      <a href={fileUrl} download>
-                        <Download className="h-3.5 w-3.5" /> Download
-                      </a>
+                    <Button size="sm" variant="default" onClick={() => openCompanyDocument(document)} className="gap-1.5 flex-1 text-xs">
+                      <ExternalLink className="h-3.5 w-3.5" /> View Attachment
                     </Button>
                   </div>
                 </div>
 
                 <div className="p-3 rounded-lg border border-border/40 bg-muted/20 space-y-1 text-xs">
                   <span className="font-semibold text-foreground flex items-center gap-1 text-[11px]">
-                    <HardDrive className="h-3 w-3 text-primary" /> Spatie Media Object Metadata
+                    <HardDrive className="h-3 w-3 text-primary" /> Gateway Attachment URL
                   </span>
-                  <div className="font-mono text-[10px] text-muted-foreground space-y-0.5 pt-1">
-                    <div>Media ID: {document.attachmentMediaId || mediaObj?.id}</div>
-                    <div>MIME Type: {mediaObj?.mime_type || "N/A"}</div>
-                    <div>Stored URL: {fileUrl}</div>
+                  <div className="font-mono text-[10px] text-muted-foreground space-y-0.5 pt-1 truncate">
+                    <div>URL: {fileUrl}</div>
                   </div>
                 </div>
               </div>
@@ -350,9 +322,9 @@ export default function CompanyDocumentDetailPage() {
             />
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-3">
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-foreground">Issue Date (YYYY-MM-DD)</label>
+              <label className="text-xs font-semibold text-foreground">Issue Date</label>
               <Input
                 type="date"
                 value={formData.issueDate}
@@ -361,48 +333,22 @@ export default function CompanyDocumentDetailPage() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-foreground">Expiry Date (YYYY-MM-DD)</label>
+              <label className="text-xs font-semibold text-foreground">Expiry Date</label>
               <Input
                 type="date"
                 value={formData.expiryDate}
                 onChange={(e) => setFormData((prev) => ({ ...prev, expiryDate: e.target.value }))}
               />
             </div>
-          </div>
 
-          <div className="grid gap-4 sm:grid-cols-2 items-center">
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-foreground">Reminder Before Expiry (Days)</label>
+              <label className="text-xs font-semibold text-foreground">Reminder Date</label>
               <Input
-                type="number"
-                min={0}
-                value={formData.reminderBeforeExpiry ?? 30}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, reminderBeforeExpiry: parseInt(e.target.value) || 0 }))
-                }
+                type="date"
+                value={formData.reminderBeforeExpiry}
+                onChange={(e) => setFormData((prev) => ({ ...prev, reminderBeforeExpiry: e.target.value }))}
               />
             </div>
-
-            <div className="flex items-center gap-3 pt-4">
-              <input
-                type="checkbox"
-                id="editIsPrivateCheck"
-                checked={Boolean(formData.isPrivate)}
-                onChange={(e) => setFormData((prev) => ({ ...prev, isPrivate: e.target.checked }))}
-                className="h-4 w-4 rounded border-border text-primary focus:ring-primary cursor-pointer"
-              />
-              <label htmlFor="editIsPrivateCheck" className="text-xs font-semibold text-foreground cursor-pointer">
-                Mark as Private / Restricted Document
-              </label>
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-foreground">Notes / Internal Context</label>
-            <Input
-              value={formData.notes}
-              onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
-            />
           </div>
 
           {/* Attachment Upload Field */}
@@ -422,11 +368,6 @@ export default function CompanyDocumentDetailPage() {
               }}
               className="text-xs cursor-pointer"
             />
-
-            <p className="text-[11px] text-amber-500 flex items-center gap-1.5 pt-1">
-              <AlertTriangle className="h-3 w-3 shrink-0" />
-              <span>Uploading a new file replaces the existing attachment in Spatie Media.</span>
-            </p>
           </div>
 
           <div className="flex justify-end gap-2.5 pt-4 border-t border-border">
@@ -460,18 +401,6 @@ export default function CompanyDocumentDetailPage() {
           </div>
         </div>
       </Dialog>
-
-      {/* Modal 3: Document Preview Modal */}
-      <DocumentPreviewModal
-        isOpen={isPreviewOpen}
-        onClose={() => setIsPreviewOpen(false)}
-        document={{
-          isPrivate: Boolean(document.isPrivate),
-          attachmentUrl: fileUrl,
-          documentName: document.documentName,
-          mimeType: mediaObj?.mime_type,
-        }}
-      />
     </div>
   )
 }

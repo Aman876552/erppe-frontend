@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react"
 import Link from "next/link"
 import { PageHeader } from "@/modules/core/components/page-header"
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -12,7 +12,6 @@ import { DataTable, Column } from "@/modules/core/components/data-table/data-tab
 import { companyDocumentsApi } from "@/modules/company-documents/lib/company-documents-api"
 import {
   CompanyDocument,
-  CreateCompanyDocumentPayload,
   CompanyDocumentQueryParams,
 } from "@/modules/company-documents/types/company-document"
 import {
@@ -22,25 +21,28 @@ import {
   CheckCircle2,
   AlertTriangle,
   Loader2,
-  Lock,
-  Unlock,
   Calendar,
   Clock,
   Paperclip,
-  Download,
   ExternalLink,
   Edit,
   Trash2,
   Eye,
-  ShieldAlert,
-  Layers,
-  Filter,
   FileCheck,
   Bell,
   RefreshCw,
 } from "lucide-react"
-import { openMediaInNewTab } from "@/modules/core/lib/media"
+import { openCompanyDocument, openMediaInNewTab } from "@/modules/core/lib/media"
 import { DocumentPreviewModal } from "@/modules/core/components/document-preview-modal"
+
+interface DocumentRepeaterRow {
+  id: string
+  documentName: string
+  issueDate: string
+  expiryDate: string
+  reminderBeforeExpiry: string
+  attachment: File | null
+}
 
 export default function CompanyDocumentsPage() {
   const [documents, setDocuments] = useState<CompanyDocument[]>([])
@@ -51,29 +53,23 @@ export default function CompanyDocumentsPage() {
 
   // Filter & Search state
   const [searchQuery, setSearchQuery] = useState("")
-  const [privacyFilter, setPrivacyFilter] = useState<string>("all") // "all" | "private" | "public"
   const [expiringSoonOnly, setExpiringSoonOnly] = useState(false)
 
-  // Single Document Modal State (Create / Edit)
+  // Document Modal State (Repeater format for Create / Single format for Edit)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingDoc, setEditingDoc] = useState<CompanyDocument | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const [formData, setFormData] = useState<CreateCompanyDocumentPayload>({
-    documentName: "",
-    isPrivate: false,
-    issueDate: "",
-    expiryDate: "",
-    reminderBeforeExpiry: 30,
-    notes: "",
-    attachment: null,
-  })
-
-  // Bulk Create Modal State
-  const [isBulkOpen, setIsBulkOpen] = useState(false)
-  const [isSubmittingBulk, setIsSubmittingBulk] = useState(false)
-  const [bulkRows, setBulkRows] = useState<CreateCompanyDocumentPayload[]>([
-    { documentName: "", isPrivate: false, expiryDate: "", reminderBeforeExpiry: 30 },
+  // Repeater State
+  const [repeaterRows, setRepeaterRows] = useState<DocumentRepeaterRow[]>([
+    {
+      id: "1",
+      documentName: "",
+      issueDate: "",
+      expiryDate: "",
+      reminderBeforeExpiry: "",
+      attachment: null,
+    },
   ])
 
   // Delete Modal State
@@ -91,8 +87,6 @@ export default function CompanyDocumentsPage() {
     try {
       const params: CompanyDocumentQueryParams = {}
       if (searchQuery.trim()) params.search = searchQuery.trim()
-      if (privacyFilter === "private") params.isPrivate = true
-      if (privacyFilter === "public") params.isPrivate = false
       if (expiringSoonOnly) params.expiringSoon = true
 
       const res = await companyDocumentsApi.getCompanyDocuments(params)
@@ -109,99 +103,114 @@ export default function CompanyDocumentsPage() {
       fetchDocuments()
     }, 300)
     return () => clearTimeout(timer)
-  }, [searchQuery, privacyFilter, expiringSoonOnly])
+  }, [searchQuery, expiringSoonOnly])
 
-  // Form Reset for Single Create / Edit
+  // Open Create Dialog with clean repeater
   const handleOpenCreate = () => {
     setEditingDoc(null)
-    setFormData({
-      documentName: "",
-      isPrivate: false,
-      issueDate: "",
-      expiryDate: "",
-      reminderBeforeExpiry: 30,
-      notes: "",
-      attachment: null,
-    })
+    setRepeaterRows([
+      {
+        id: Math.random().toString(),
+        documentName: "",
+        issueDate: "",
+        expiryDate: "",
+        reminderBeforeExpiry: "",
+        attachment: null,
+      },
+    ])
     setIsModalOpen(true)
   }
 
+  // Open Edit Dialog for single document
   const handleOpenEdit = (doc: CompanyDocument) => {
     setEditingDoc(doc)
-    setFormData({
-      documentName: doc.documentName,
-      isPrivate: Boolean(doc.isPrivate),
-      issueDate: doc.issueDate || "",
-      expiryDate: doc.expiryDate || "",
-      reminderBeforeExpiry: doc.reminderBeforeExpiry ?? 30,
-      notes: doc.notes || "",
-      attachment: null,
-    })
+    setRepeaterRows([
+      {
+        id: String(doc.id),
+        documentName: doc.documentName,
+        issueDate: doc.issueDate ? doc.issueDate.split("T")[0] : "",
+        expiryDate: doc.expiryDate ? doc.expiryDate.split("T")[0] : "",
+        reminderBeforeExpiry: doc.reminderBeforeExpiry ? doc.reminderBeforeExpiry.split("T")[0] : "",
+        attachment: null,
+      },
+    ])
     setIsModalOpen(true)
   }
 
-  const handleSubmitSingle = async (e: React.FormEvent) => {
+  // Repeater handlers
+  const handleAddRepeaterRow = () => {
+    setRepeaterRows((prev) => [
+      ...prev,
+      {
+        id: Math.random().toString(),
+        documentName: "",
+        issueDate: "",
+        expiryDate: "",
+        reminderBeforeExpiry: "",
+        attachment: null,
+      },
+    ])
+  }
+
+  const handleRemoveRepeaterRow = (index: number) => {
+    setRepeaterRows((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const updateRepeaterRow = (index: number, field: keyof DocumentRepeaterRow, value: any) => {
+    setRepeaterRows((prev) => {
+      const next = [...prev]
+      next[index] = { ...next[index], [field]: value }
+      return next
+    })
+  }
+
+  // Submit Handler for Add / Edit
+  const handleSubmitDocuments = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    const validRows = repeaterRows.filter((r) => r.documentName.trim().length > 0)
+    if (validRows.length === 0) {
+      setError("Please enter a Document Name for at least one record.")
+      return
+    }
+
     setIsSubmitting(true)
     setError(null)
 
     try {
       if (editingDoc) {
-        await companyDocumentsApi.updateCompanyDocument(editingDoc.id, formData)
-        showNotification(`Document "${formData.documentName}" updated successfully.`)
+        // Edit mode
+        const row = validRows[0]
+        await companyDocumentsApi.updateCompanyDocument(editingDoc.id, {
+          documentName: row.documentName,
+          issueDate: row.issueDate || undefined,
+          expiryDate: row.expiryDate || undefined,
+          reminderBeforeExpiry: row.reminderBeforeExpiry || undefined,
+          attachment: row.attachment,
+        })
+        showNotification(`Document "${row.documentName}" updated successfully.`)
       } else {
-        await companyDocumentsApi.createCompanyDocument(formData)
-        showNotification(`Document "${formData.documentName}" created successfully.`)
+        // Multi-create repeater mode
+        await Promise.all(
+          validRows.map((row) =>
+            companyDocumentsApi.createCompanyDocument({
+              documentName: row.documentName,
+              issueDate: row.issueDate || undefined,
+              expiryDate: row.expiryDate || undefined,
+              reminderBeforeExpiry: row.reminderBeforeExpiry || undefined,
+              attachment: row.attachment,
+            })
+          )
+        )
+        showNotification(`${validRows.length} document record(s) created successfully.`)
       }
+
       setIsModalOpen(false)
       fetchDocuments()
     } catch (err: any) {
-      setError(err.message || "Failed to save company document.")
+      setError(err.message || "Failed to save company document(s).")
     } finally {
       setIsSubmitting(false)
-    }
-  }
-
-  // Bulk Create Handlers
-  const handleOpenBulk = () => {
-    setBulkRows([
-      { documentName: "", isPrivate: false, expiryDate: "", reminderBeforeExpiry: 30 },
-      { documentName: "", isPrivate: false, expiryDate: "", reminderBeforeExpiry: 30 },
-    ])
-    setIsBulkOpen(true)
-  }
-
-  const handleAddBulkRow = () => {
-    setBulkRows((prev) => [
-      ...prev,
-      { documentName: "", isPrivate: false, expiryDate: "", reminderBeforeExpiry: 30 },
-    ])
-  }
-
-  const handleRemoveBulkRow = (index: number) => {
-    setBulkRows((prev) => prev.filter((_, i) => i !== index))
-  }
-
-  const handleSubmitBulk = async (e: React.FormEvent) => {
-    e.preventDefault()
-    const validRows = bulkRows.filter((r) => r.documentName.trim().length > 0)
-    if (validRows.length === 0) {
-      setError("Please provide at least one valid document name.")
-      return
-    }
-
-    setIsSubmittingBulk(true)
-    setError(null)
-
-    try {
-      await companyDocumentsApi.bulkCreateCompanyDocuments({ documents: validRows })
-      showNotification(`${validRows.length} company documents created in bulk.`)
-      setIsBulkOpen(false)
-      fetchDocuments()
-    } catch (err: any) {
-      setError(err.message || "Failed to create bulk documents.")
-    } finally {
-      setIsSubmittingBulk(false)
     }
   }
 
@@ -225,13 +234,18 @@ export default function CompanyDocumentsPage() {
 
   // Calculate Metrics
   const totalCount = documents.length
-  const privateCount = documents.filter((d) => Boolean(d.isPrivate)).length
   const attachedCount = documents.filter((d) => Boolean(d.attachmentUrl || d.media?.url)).length
   const expiringCount = documents.filter((d) => {
     if (!d.expiryDate) return false
     const todayStr = new Date().toISOString().split("T")[0]
     return d.expiryDate >= todayStr
   }).length
+
+  // Format date helper
+  const formatDateDisplay = (dateStr?: string | null) => {
+    if (!dateStr) return null
+    return dateStr.includes("T") ? dateStr.split("T")[0] : dateStr
+  }
 
   // Columns for DataTable
   const columns: Column<CompanyDocument>[] = [
@@ -256,26 +270,12 @@ export default function CompanyDocumentsPage() {
       ),
     },
     {
-      key: "isPrivate",
-      title: "Access Level",
-      render: (row) =>
-        row.isPrivate ? (
-          <Badge variant="destructive" className="gap-1 text-[10px] font-medium">
-            <Lock className="h-3 w-3" /> Private
-          </Badge>
-        ) : (
-          <Badge variant="secondary" className="gap-1 text-[10px] font-medium">
-            <Unlock className="h-3 w-3" /> Public
-          </Badge>
-        ),
-    },
-    {
       key: "issueDate",
       title: "Issue Date",
       render: (row) =>
         row.issueDate ? (
           <span className="text-xs font-mono text-foreground flex items-center gap-1">
-            <Calendar className="h-3 w-3 text-muted-foreground" /> {row.issueDate}
+            <Calendar className="h-3 w-3 text-muted-foreground" /> {formatDateDisplay(row.issueDate)}
           </span>
         ) : (
           <span className="text-[11px] text-muted-foreground italic">—</span>
@@ -286,18 +286,23 @@ export default function CompanyDocumentsPage() {
       title: "Expiry Date",
       render: (row) =>
         row.expiryDate ? (
-          <div className="space-y-0.5">
-            <span className="text-xs font-mono font-semibold text-foreground flex items-center gap-1">
-              <Clock className="h-3 w-3 text-amber-500" /> {row.expiryDate}
-            </span>
-            {row.reminderBeforeExpiry !== undefined && row.reminderBeforeExpiry !== null && (
-              <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-                <Bell className="h-2.5 w-2.5 text-primary" /> Remind {row.reminderBeforeExpiry}d prior
-              </span>
-            )}
-          </div>
+          <span className="text-xs font-mono font-semibold text-foreground flex items-center gap-1">
+            <Clock className="h-3 w-3 text-amber-500" /> {formatDateDisplay(row.expiryDate)}
+          </span>
         ) : (
           <span className="text-[11px] text-muted-foreground italic">No Expiry</span>
+        ),
+    },
+    {
+      key: "reminderBeforeExpiry",
+      title: "Reminder Before Expiry",
+      render: (row) =>
+        row.reminderBeforeExpiry ? (
+          <span className="text-xs font-mono font-medium text-foreground flex items-center gap-1.5">
+            <Bell className="h-3.5 w-3.5 text-primary" /> {formatDateDisplay(row.reminderBeforeExpiry)}
+          </span>
+        ) : (
+          <span className="text-[11px] text-muted-foreground italic">No Reminder</span>
         ),
     },
     {
@@ -309,19 +314,12 @@ export default function CompanyDocumentsPage() {
         return fileUrl ? (
           <button
             type="button"
-            onClick={() =>
-              openMediaInNewTab({
-                isPrivate: Boolean(row.isPrivate),
-                attachmentUrl: fileUrl,
-                documentName: row.documentName,
-                mimeType: row.media?.mime_type,
-              })
-            }
+            onClick={() => openCompanyDocument(row)}
             className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium text-[11px] hover:bg-emerald-500/20 transition-colors cursor-pointer select-none"
             title="Open attachment in new tab"
           >
             <Paperclip className="h-3 w-3" />
-            <span className="max-w-[120px] truncate">{fileName}</span>
+            <span className="max-w-[140px] truncate">{fileName}</span>
             <ExternalLink className="h-2.5 w-2.5 shrink-0 opacity-70" />
           </button>
         ) : (
@@ -367,14 +365,11 @@ export default function CompanyDocumentsPage() {
       {/* Header */}
       <PageHeader
         title="Company Documents"
-        description="Manage legal certificates, compliance files, private permits, and track expiry reminders."
+        description="Manage legal certificates, compliance files, permits, and track expiry reminders."
         actions={
           <div className="flex items-center gap-2">
             <Button onClick={fetchDocuments} variant="outline" size="sm" className="gap-1.5">
               <RefreshCw className="h-3.5 w-3.5" /> Refresh
-            </Button>
-            <Button onClick={handleOpenBulk} variant="outline" size="sm" className="gap-1.5">
-              <Layers className="h-3.5 w-3.5" /> Bulk Add
             </Button>
             <Button onClick={handleOpenCreate} size="sm" className="gap-1.5">
               <Plus className="h-3.5 w-3.5" /> Add Document
@@ -399,7 +394,7 @@ export default function CompanyDocumentsPage() {
       )}
 
       {/* Metrics Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-3">
         <Card className="p-4 border border-border/60">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-muted-foreground">Total Documents</span>
@@ -413,29 +408,18 @@ export default function CompanyDocumentsPage() {
 
         <Card className="p-4 border border-border/60">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted-foreground">Private Files</span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-500/10 text-red-500">
-              <Lock className="h-4 w-4" />
-            </div>
-          </div>
-          <div className="mt-2 text-2xl font-extrabold text-foreground">{privateCount}</div>
-          <span className="text-[10px] text-muted-foreground mt-1 block">Restricted internal access</span>
-        </Card>
-
-        <Card className="p-4 border border-border/60">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted-foreground">Attached Media</span>
+            <span className="text-xs font-semibold text-muted-foreground">Attached Files</span>
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
               <FileCheck className="h-4 w-4" />
             </div>
           </div>
           <div className="mt-2 text-2xl font-extrabold text-foreground">{attachedCount}</div>
-          <span className="text-[10px] text-muted-foreground mt-1 block">Spatie Media attachments</span>
+          <span className="text-[10px] text-muted-foreground mt-1 block">File attachments uploaded</span>
         </Card>
 
         <Card className="p-4 border border-border/60">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted-foreground">Expiring / Active</span>
+            <span className="text-xs font-semibold text-muted-foreground">Active Expiries</span>
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10 text-amber-500">
               <Clock className="h-4 w-4" />
             </div>
@@ -451,46 +435,14 @@ export default function CompanyDocumentsPage() {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search by document name or notes..."
+              placeholder="Search by document name..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9 text-xs"
             />
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Privacy Filter */}
-            <div className="flex items-center gap-1 rounded-lg bg-muted/60 p-1 border border-border/50">
-              <button
-                type="button"
-                onClick={() => setPrivacyFilter("all")}
-                className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors ${
-                  privacyFilter === "all" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
-                }`}
-              >
-                All
-              </button>
-              <button
-                type="button"
-                onClick={() => setPrivacyFilter("public")}
-                className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors ${
-                  privacyFilter === "public" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
-                }`}
-              >
-                Public
-              </button>
-              <button
-                type="button"
-                onClick={() => setPrivacyFilter("private")}
-                className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors ${
-                  privacyFilter === "private" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
-                }`}
-              >
-                Private
-              </button>
-            </div>
-
-            {/* Expiring Soon Toggle */}
+          <div className="flex items-center gap-2">
             <Button
               type="button"
               variant={expiringSoonOnly ? "default" : "outline"}
@@ -514,205 +466,142 @@ export default function CompanyDocumentsPage() {
         />
       </Card>
 
-      {/* Modal 1: Single Document Create / Edit */}
+      {/* Repeater Modal for Add / Edit Company Documents */}
       <Dialog
         open={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title={editingDoc ? "Edit Company Document" : "Add Company Document"}
-        maxWidth="lg"
+        maxWidth="2xl"
       >
-        <form onSubmit={handleSubmitSingle} className="space-y-4 mt-2">
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-foreground">Document Name *</label>
-            <Input
-              value={formData.documentName}
-              onChange={(e) => setFormData((prev) => ({ ...prev, documentName: e.target.value }))}
-              placeholder="e.g. Trade License 2026 or GST Certificate"
-              required
-            />
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-foreground">Issue Date (YYYY-MM-DD)</label>
-              <Input
-                type="date"
-                value={formData.issueDate}
-                onChange={(e) => setFormData((prev) => ({ ...prev, issueDate: e.target.value }))}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-foreground">Expiry Date (YYYY-MM-DD)</label>
-              <Input
-                type="date"
-                value={formData.expiryDate}
-                onChange={(e) => setFormData((prev) => ({ ...prev, expiryDate: e.target.value }))}
-              />
-            </div>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2 items-center">
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-foreground">Reminder Before Expiry (Days)</label>
-              <Input
-                type="number"
-                min={0}
-                value={formData.reminderBeforeExpiry ?? 30}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, reminderBeforeExpiry: parseInt(e.target.value) || 0 }))
-                }
-              />
-            </div>
-
-            <div className="flex items-center gap-3 pt-4">
-              <input
-                type="checkbox"
-                id="isPrivateCheck"
-                checked={Boolean(formData.isPrivate)}
-                onChange={(e) => setFormData((prev) => ({ ...prev, isPrivate: e.target.checked }))}
-                className="h-4 w-4 rounded border-border text-primary focus:ring-primary cursor-pointer"
-              />
-              <label htmlFor="isPrivateCheck" className="text-xs font-semibold text-foreground cursor-pointer">
-                Mark as Private / Restricted Document
-              </label>
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-foreground">Notes / Internal Context</label>
-            <Input
-              value={formData.notes}
-              onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
-              placeholder="e.g. Renewed annually with municipal authority"
-            />
-          </div>
-
-          {/* Attachment Upload Field */}
-          <div className="space-y-2 p-3.5 rounded-xl border border-border/60 bg-muted/20">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                <Paperclip className="h-3.5 w-3.5 text-primary" /> Attachment File
-              </label>
-              {editingDoc?.attachmentUrl && (
-                <span className="text-[11px] text-emerald-500 font-medium">Existing file attached</span>
-              )}
-            </div>
-
-            <Input
-              type="file"
-              onChange={(e) => {
-                const file = e.target.files?.[0] || null
-                setFormData((prev) => ({ ...prev, attachment: file }))
-              }}
-              className="text-xs cursor-pointer"
-            />
-
-            {editingDoc && (
-              <p className="text-[11px] text-amber-500 flex items-center gap-1.5 pt-1">
-                <AlertTriangle className="h-3 w-3 shrink-0" />
-                <span>Notice: Uploading a new file will replace and clear the previous attachment.</span>
-              </p>
-            )}
-          </div>
-
-          <div className="flex justify-end gap-2.5 pt-4 border-t border-border">
-            <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" variant="default" disabled={isSubmitting}>
-              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
-              {editingDoc ? "Save Changes" : "Create Document"}
-            </Button>
-          </div>
-        </form>
-      </Dialog>
-
-      {/* Modal 2: Bulk Create Documents */}
-      <Dialog open={isBulkOpen} onClose={() => setIsBulkOpen(false)} title="Bulk Add Company Documents" maxWidth="xl">
-        <form onSubmit={handleSubmitBulk} className="space-y-4 mt-2">
-          <p className="text-xs text-muted-foreground">
-            Create multiple document records in a single request. Attachments can be uploaded later on individual document profiles.
-          </p>
-
-          <div className="space-y-3 max-h-[360px] overflow-y-auto pr-1">
-            {bulkRows.map((row, idx) => (
-              <div key={idx} className="p-3 rounded-lg border border-border/60 bg-muted/20 space-y-2 text-xs">
-                <div className="flex items-center justify-between pb-1 border-b border-border/40">
-                  <span className="font-semibold text-foreground">Document Entry #{idx + 1}</span>
-                  {bulkRows.length > 1 && (
+        <form onSubmit={handleSubmitDocuments} className="space-y-6 mt-2">
+          <div className="space-y-5 max-h-[60vh] overflow-y-auto pr-1">
+            {repeaterRows.map((row, idx) => (
+              <div key={row.id} className="p-4 rounded-xl border border-border/80 bg-card/60 space-y-4 shadow-sm">
+                {/* Header */}
+                <div className="flex items-center justify-between border-b border-border/50 pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground font-bold text-xs">
+                      {idx + 1}
+                    </div>
+                    <span className="font-bold text-xs uppercase tracking-wider text-foreground">
+                      DOCUMENT RECORD #{idx + 1}
+                    </span>
+                  </div>
+                  {repeaterRows.length > 1 && !editingDoc && (
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleRemoveBulkRow(idx)}
-                      className="text-red-500 hover:text-red-600 h-6 px-2 text-[11px]"
+                      onClick={() => handleRemoveRepeaterRow(idx)}
+                      className="text-red-500 hover:text-red-600 h-7 px-2 text-xs"
                     >
-                      Remove
+                      <Trash2 className="h-3.5 w-3.5 mr-1" /> Remove
                     </Button>
                   )}
                 </div>
 
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <Input
-                    placeholder="Document Name *"
-                    value={row.documentName}
-                    onChange={(e) => {
-                      const newRows = [...bulkRows]
-                      newRows[idx].documentName = e.target.value
-                      setBulkRows(newRows)
-                    }}
-                    required
-                  />
-                  <div className="flex items-center gap-2">
+                {/* Row 1: Document Name & Attachment File */}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-foreground">
+                      Document Name <span className="text-red-500">*</span>
+                    </label>
+                    <Input
+                      value={row.documentName}
+                      onChange={(e) => updateRepeaterRow(idx, "documentName", e.target.value)}
+                      placeholder="e.g. GST Registration Certificate"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-foreground">
+                      Attachment File {!editingDoc && <span className="text-red-500">*</span>}
+                    </label>
+                    <div className="relative flex items-center justify-between rounded-lg border border-dashed border-border/80 bg-muted/30 px-3 py-1.5 text-xs hover:border-primary transition-colors">
+                      <div className="flex items-center gap-2 text-muted-foreground overflow-hidden pr-2">
+                        <Paperclip className="h-3.5 w-3.5 shrink-0 text-primary" />
+                        <span className="truncate max-w-[160px]">
+                          {row.attachment ? row.attachment.name : "Choose or drop document..."}
+                        </span>
+                      </div>
+                      <label className="shrink-0 cursor-pointer rounded-md bg-primary/10 px-3 py-1 text-xs font-semibold text-primary hover:bg-primary/20 transition-colors">
+                        Browse
+                        <input
+                          type="file"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0] || null
+                            updateRepeaterRow(idx, "attachment", file)
+                          }}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Row 2: Issue Date, Expiry Date, Reminder Before Expiry */}
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-foreground">Issue Date</label>
                     <Input
                       type="date"
-                      placeholder="Expiry Date"
-                      value={row.expiryDate || ""}
-                      onChange={(e) => {
-                        const newRows = [...bulkRows]
-                        newRows[idx].expiryDate = e.target.value
-                        setBulkRows(newRows)
-                      }}
+                      value={row.issueDate}
+                      onChange={(e) => updateRepeaterRow(idx, "issueDate", e.target.value)}
                     />
-                    <label className="flex items-center gap-1 shrink-0 text-[11px] cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={Boolean(row.isPrivate)}
-                        onChange={(e) => {
-                          const newRows = [...bulkRows]
-                          newRows[idx].isPrivate = e.target.checked
-                          setBulkRows(newRows)
-                        }}
-                        className="h-3.5 w-3.5 rounded border-border"
-                      />
-                      Private
-                    </label>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-foreground">Expiry Date</label>
+                    <Input
+                      type="date"
+                      value={row.expiryDate}
+                      onChange={(e) => updateRepeaterRow(idx, "expiryDate", e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-foreground">Reminder Before Expiry</label>
+                    <Input
+                      type="date"
+                      value={row.reminderBeforeExpiry}
+                      onChange={(e) => updateRepeaterRow(idx, "reminderBeforeExpiry", e.target.value)}
+                    />
                   </div>
                 </div>
               </div>
             ))}
           </div>
 
-          <div className="flex items-center justify-between pt-2">
-            <Button type="button" variant="outline" size="sm" onClick={handleAddBulkRow} className="gap-1 text-xs">
-              <Plus className="h-3.5 w-3.5" /> Add Another Row
-            </Button>
+          {/* Footer Actions */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-4 border-t border-border">
+            <div>
+              {!editingDoc && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleAddRepeaterRow}
+                  className="gap-2 border-primary/40 text-primary hover:bg-primary/5 text-xs font-semibold"
+                >
+                  <Plus className="h-4 w-4" /> Add Another Document
+                </Button>
+              )}
+            </div>
 
             <div className="flex justify-end gap-2.5">
-              <Button type="button" variant="outline" onClick={() => setIsBulkOpen(false)}>
+              <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" variant="default" disabled={isSubmittingBulk}>
-                {isSubmittingBulk ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
-                Save Bulk Documents
+              <Button type="submit" variant="default" disabled={isSubmitting} className="min-w-[130px]">
+                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
+                {editingDoc ? "Save Changes" : "Save Documents"}
               </Button>
             </div>
           </div>
         </form>
       </Dialog>
 
-      {/* Modal 3: Delete Confirmation */}
+      {/* Delete Confirmation Modal */}
       <Dialog open={Boolean(deleteDoc)} onClose={() => setDeleteDoc(null)} title="Delete Company Document">
         <div className="space-y-4 mt-2">
           <p className="text-xs text-muted-foreground leading-relaxed">
@@ -732,7 +621,7 @@ export default function CompanyDocumentsPage() {
         </div>
       </Dialog>
 
-      {/* Modal 4: Private Media Preview Modal */}
+      {/* Private Media Preview Modal */}
       <DocumentPreviewModal
         isOpen={Boolean(previewDoc)}
         onClose={() => setPreviewDoc(null)}

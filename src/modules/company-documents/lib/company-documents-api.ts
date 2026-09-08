@@ -77,11 +77,9 @@ export class CompanyDocumentsApiService {
     }
     if (payload.issueDate) formData.append("issueDate", payload.issueDate)
     if (payload.expiryDate) formData.append("expiryDate", payload.expiryDate)
-    if (payload.reminderBeforeExpiry !== undefined && payload.reminderBeforeExpiry !== null) {
-      formData.append("reminderBeforeExpiry", String(payload.reminderBeforeExpiry))
+    if (payload.reminderBeforeExpiry) {
+      formData.append("reminderBeforeExpiry", payload.reminderBeforeExpiry)
     }
-    if (payload.notes) formData.append("notes", payload.notes)
-    if (payload.rawData) formData.append("rawData", payload.rawData)
 
     if (payload.attachment instanceof File) {
       formData.append("attachment", payload.attachment)

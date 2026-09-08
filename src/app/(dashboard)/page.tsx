@@ -46,7 +46,7 @@ export default function DashboardPage() {
       value: "5 Roles",
       change: "RBAC Enforced",
       icon: <ShieldCheck className="h-5 w-5 text-emerald-500" />,
-      href: "/core/roles",
+      href: "/core/permissions",
     },
     {
       title: "System Permissions",
@@ -81,8 +81,8 @@ export default function DashboardPage() {
         actions={
           <div className="flex gap-2">
             <Button asChild variant="outline" size="sm" className="gap-2">
-              <Link href="/core/roles">
-                <Shield className="h-4 w-4" /> Roles Matrix
+              <Link href="/core/permissions">
+                <Shield className="h-4 w-4" /> Permissions Matrix
               </Link>
             </Button>
             <Button asChild variant="default" size="sm" className="gap-2">

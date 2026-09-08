@@ -107,22 +107,39 @@ export class ClientsApiService {
     docKeys.forEach((docKey) => {
       if (documentFiles && documentFiles[docKey] instanceof File) {
         formData.append(docKey, documentFiles[docKey]!)
-      } else if (payload[docKey] !== undefined && payload[docKey] !== null) {
-        // Resend numeric media ID or string if untouched
-        formData.append(docKey, String(payload[docKey]))
       }
     })
 
     // Append nested locations array format: locations[0][locationName]...
     if (Array.isArray(payload.locations)) {
       payload.locations.forEach((loc, idx) => {
-        if (loc.id) formData.append(`locations[${idx}][id]`, String(loc.id))
-        formData.append(`locations[${idx}][locationName]`, loc.locationName)
-        if (loc.contactPerson) formData.append(`locations[${idx}][contactPerson]`, loc.contactPerson)
-        if (loc.deliveryAddress) formData.append(`locations[${idx}][deliveryAddress]`, loc.deliveryAddress)
-        if (loc.dispatchInstruction) formData.append(`locations[${idx}][dispatchInstruction]`, loc.dispatchInstruction)
-        if (loc.transportTerms) formData.append(`locations[${idx}][transportTerms]`, loc.transportTerms)
-        if (loc.taxShippingInfo) formData.append(`locations[${idx}][taxShippingInfo]`, loc.taxShippingInfo)
+        const isNumericId =
+          typeof loc.id === "number" || (typeof loc.id === "string" && /^\d+$/.test(loc.id))
+        if (isNumericId) {
+          formData.append(`locations[${idx}][id]`, String(loc.id))
+        }
+        formData.append(`locations[${idx}][locationName]`, String(loc.locationName || loc.name || ""))
+        if (loc.level) formData.append(`locations[${idx}][level]`, String(loc.level))
+        if (loc.isPrimary !== undefined) formData.append(`locations[${idx}][isPrimary]`, loc.isPrimary ? "1" : "0")
+        if (loc.contactPerson || loc.contact) formData.append(`locations[${idx}][contactPerson]`, String(loc.contactPerson || loc.contact))
+        if (loc.phone) formData.append(`locations[${idx}][phone]`, String(loc.phone))
+        if (loc.deliveryAddress || loc.address) formData.append(`locations[${idx}][deliveryAddress]`, String(loc.deliveryAddress || loc.address))
+        if (loc.city) formData.append(`locations[${idx}][city]`, String(loc.city))
+        if (loc.state) formData.append(`locations[${idx}][state]`, String(loc.state))
+        if (loc.pincode) formData.append(`locations[${idx}][pincode]`, String(loc.pincode))
+        if (loc.country) formData.append(`locations[${idx}][country]`, String(loc.country))
+        if (loc.billingMode) formData.append(`locations[${idx}][billingMode]`, String(loc.billingMode))
+        if (loc.billingName) formData.append(`locations[${idx}][billingName]`, String(loc.billingName))
+        if (loc.billingGst) formData.append(`locations[${idx}][billingGst]`, String(loc.billingGst))
+        if (loc.billingState) formData.append(`locations[${idx}][billingState]`, String(loc.billingState))
+        if (loc.billingAddress) formData.append(`locations[${idx}][billingAddress]`, String(loc.billingAddress))
+        if (loc.bankName) formData.append(`locations[${idx}][bankName]`, String(loc.bankName))
+        if (loc.bankAccount) formData.append(`locations[${idx}][bankAccount]`, String(loc.bankAccount))
+        if (loc.bankIfsc) formData.append(`locations[${idx}][bankIfsc]`, String(loc.bankIfsc))
+        if (loc.bankHolder) formData.append(`locations[${idx}][bankHolder]`, String(loc.bankHolder))
+        if (loc.dispatchInstruction) formData.append(`locations[${idx}][dispatchInstruction]`, String(loc.dispatchInstruction))
+        if (loc.transportTerms) formData.append(`locations[${idx}][transportTerms]`, String(loc.transportTerms))
+        if (loc.taxShippingInfo) formData.append(`locations[${idx}][taxShippingInfo]`, String(loc.taxShippingInfo))
       })
     }
 

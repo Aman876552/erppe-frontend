@@ -10,7 +10,8 @@ export interface Expense {
   id: string | number
   title: string
   category: string
-  type: number // Numeric expense amount
+  amount?: number
+  type: number | string // Numeric expense amount or type string
   expenseDate: string
   dueDate?: string | null
   recurringFrequency?: string | null
